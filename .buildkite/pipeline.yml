@@ -1,0 +1,58 @@
+steps:
+  - label: ":bazel: Build all targets"
+    command: "bazel build //..."
+    agents:
+      queue: "default"
+
+  - label: ":test_tube: Run all tests"
+    command: "bazel test //..."
+    agents:
+      queue: "default"
+    artifact_paths:
+      - "bazel-testlogs/**/*.xml"
+
+  - label: ":mag: Bazel query - List all targets"
+    command: "bazel query //..."
+    agents:
+      queue: "default"
+    soft_fail: true
+
+  - label: ":package: Build services"
+    command: |
+      echo "Building individual services..."
+      bazel build //services/auth:auth
+      bazel build //services/user:user  
+      bazel build //services/payment:payment
+    agents:
+      queue: "default"
+
+  - label: ":white_check_mark: Test services"
+    command: |
+      echo "Testing individual services..."
+      bazel test //services/auth:auth_test
+      bazel test //services/user:user_test
+      bazel test //services/payment:payment_test
+    agents:
+      queue: "default"
+    artifact_paths:
+      - "bazel-testlogs/**/*.xml"
+
+  - label: ":books: Test shared libraries"
+    command: |
+      echo "Testing shared libraries..."
+      bazel test //lib/...
+    agents:
+      queue: "default"
+    artifact_paths:
+      - "bazel-testlogs/**/*.xml"
+
+  - wait
+
+  - label: ":rocket: Integration check"
+    command: |
+      echo "Running final integration checks..."
+      bazel query "kind('go_binary', //...)"
+      bazel query "kind('go_test', //...)"
+    agents:
+      queue: "default"
+    soft_fail: true
