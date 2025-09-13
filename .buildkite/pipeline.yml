@@ -1,0 +1,53 @@
+steps:
+  - label: ":bazel: Setup Bazel"
+    command: |
+      echo "--- Setting up Bazel workspace"
+      bazel version
+      echo "--- Warming up Bazel"
+      bazel info
+
+  - label: ":building_construction: Build All Targets"
+    command: |
+      echo "--- Building all targets"
+      bazel build //...
+    artifact_paths:
+      - "bazel-bin/**/*"
+
+  - label: ":test_tube: Run All Tests"
+    command: |
+      echo "--- Running all tests"
+      bazel test //... --test_output=errors
+    artifact_paths:
+      - "bazel-testlogs/**/*"
+
+  - label: ":mag: Lint and Format Check"
+    command: |
+      echo "--- Running gazelle to check BUILD file consistency"
+      bazel run //:gazelle -- --mode=diff
+      echo "--- Running go fmt check"
+      test -z "$(bazel run @rules_go//go -- fmt -l .)" || (echo "Go files need formatting" && exit 1)
+
+  - label: ":package: Build Service Binaries"
+    command: |
+      echo "--- Building service binaries"
+      bazel build //services/auth:auth
+      bazel build //services/payment:payment  
+      bazel build //services/user:user
+      echo "--- Copying binaries for upload"
+      mkdir -p dist
+      cp bazel-bin/services/auth/auth_/auth dist/auth
+      cp bazel-bin/services/payment/payment_/payment dist/payment
+      cp bazel-bin/services/user/user_/user dist/user
+      ls -la dist/
+    artifact_paths:
+      - "dist/*"
+
+  - label: ":bar_chart: Generate Dependency Graph"
+    command: |
+      echo "--- Generating dependency graph"
+      bazel query --output=graph "//..." > graph.dot
+      which dot && dot -Tpng graph.dot -o graph.png || echo "Graphviz not available, skipping PNG generation"
+    artifact_paths:
+      - "graph.dot"
+      - "graph.png"
+    soft_fail: true
