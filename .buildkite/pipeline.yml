@@ -1,46 +1,59 @@
 env:
   BAZEL_VERSION: "7.0.0"
 
+# YAML anchors for reusable command blocks
+x-bazel-setup: &bazel-setup |
+  echo "--- Installing Bazel"
+  # Install Bazel using Bazelisk (recommended approach)
+  curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o bazel
+  chmod +x bazel
+  sudo mv bazel /usr/local/bin/bazel
+  
+  echo "--- Setting up Bazel environment"
+  echo "Bazel version: $$(bazel version)"
+  
+  echo "--- Configuring Bazel"
+  echo "startup --host_jvm_args=-Xmx4g" >> ~/.bazelrc
+  echo "build --jobs=auto" >> ~/.bazelrc
+  echo "test --test_output=errors" >> ~/.bazelrc
+
 steps:
-  - name: ":bazel: Setup Bazel"
-    command: |
-      echo "--- Setting up Bazel environment"
-      echo "Bazel version: $$(bazel version)"
-      echo "--- Configuring Bazel"
-      echo "startup --host_jvm_args=-Xmx4g" >> ~/.bazelrc
-      echo "build --jobs=auto" >> ~/.bazelrc
-      echo "test --test_output=errors" >> ~/.bazelrc
-    
   - name: ":package: Build all targets"
     command: |
+      *bazel-setup
       echo "--- Building all targets"
       bazel build //...
     
   - name: ":test_tube: Run all tests"
     command: |
+      *bazel-setup
       echo "--- Running all tests"
       bazel test //... --test_output=all
     
   - name: ":package: Build auth service"
     command: |
+      *bazel-setup
       echo "--- Building auth service"
       bazel build //services/auth:auth
       echo "Built auth service successfully"
     
   - name: ":package: Build user service"  
     command: |
+      *bazel-setup
       echo "--- Building user service"
       bazel build //services/user:user
       echo "Built user service successfully"
     
   - name: ":package: Build payment service"
     command: |
+      *bazel-setup
       echo "--- Building payment service"
       bazel build //services/payment:payment
       echo "Built payment service successfully"
     
   - name: ":mag: Run specific service tests"
     command: |
+      *bazel-setup
       echo "--- Running service-specific tests"
       bazel test //services/auth:auth_test
       bazel test //services/user:user_test
@@ -48,11 +61,13 @@ steps:
       
   - name: ":mag: Run library tests"
     command: |
+      *bazel-setup
       echo "--- Running library tests"
       bazel test //lib/metrics:collector_test
     
   - name: ":bar_chart: Test coverage report"
     command: |
+      *bazel-setup
       echo "--- Generating test coverage"
       bazel coverage //...
     soft_fail: true
