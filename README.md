@@ -2,8 +2,6 @@
 
 This repository contains a hypothetical Go microservices project structured to demonstrate Bazel's query capabilities. It's meant to serve as a companion to the Buildkite blog post [A Guide to Bazel Query](https://buildkite.com/blog/a-guide-to-bazel-query).
 
-Testing...
-
 ## Overview
 
 The repository consists of:
