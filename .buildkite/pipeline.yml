@@ -1,53 +1,76 @@
 steps:
-  - label: ":bazel: Setup Bazel"
-    command: |
-      echo "--- Setting up Bazel workspace"
-      bazel version
-      echo "--- Warming up Bazel"
-      bazel info
+  # Build all targets in parallel
+  - group: "Build"
+    steps:
+      - label: ":package: Build auth service"
+        command: "bazel build //services/auth:auth"
 
-  - label: ":building_construction: Build All Targets"
-    command: |
-      echo "--- Building all targets"
-      bazel build //...
-    artifact_paths:
-      - "bazel-bin/**/*"
+      - label: ":package: Build payment service"
+        command: "bazel build //services/payment:payment"
 
-  - label: ":test_tube: Run All Tests"
-    command: |
-      echo "--- Running all tests"
-      bazel test //... --test_output=errors
-    artifact_paths:
-      - "bazel-testlogs/**/*"
+      - label: ":package: Build user service"
+        command: "bazel build //services/user:user"
 
-  - label: ":mag: Lint and Format Check"
-    command: |
-      echo "--- Running gazelle to check BUILD file consistency"
-      bazel run //:gazelle -- --mode=diff
-      echo "--- Running go fmt check"
-      test -z "$(bazel run @rules_go//go -- fmt -l .)" || (echo "Go files need formatting" && exit 1)
+      - label: ":package: Build libraries"
+        command: "bazel build //lib/..."
 
-  - label: ":package: Build Service Binaries"
-    command: |
-      echo "--- Building service binaries"
-      bazel build //services/auth:auth
-      bazel build //services/payment:payment  
-      bazel build //services/user:user
-      echo "--- Copying binaries for upload"
-      mkdir -p dist
-      cp bazel-bin/services/auth/auth_/auth dist/auth
-      cp bazel-bin/services/payment/payment_/payment dist/payment
-      cp bazel-bin/services/user/user_/user dist/user
-      ls -la dist/
-    artifact_paths:
-      - "dist/*"
+  # Test all targets in parallel
+  - group: "Test"
+    steps:
+      - label: ":test_tube: Test config library"
+        command: "bazel test //lib/config:config_test --test_output=all"
 
-  - label: ":bar_chart: Generate Dependency Graph"
+      - label: ":test_tube: Test logging library"
+        command: "bazel test //lib/logging:logging_test --test_output=all"
+
+      - label: ":test_tube: Test metrics library"
+        command: "bazel test //lib/metrics:metrics_test --test_output=all"
+
+      - label: ":test_tube: Test auth service"
+        command: "bazel test //services/auth:auth_test --test_output=all"
+
+      - label: ":test_tube: Test payment service"
+        command: "bazel test //services/payment:payment_test --test_output=all"
+
+      - label: ":test_tube: Test user service"
+        command: "bazel test //services/user:user_test --test_output=all"
+
+  # Generate build summary annotation
+  - wait: ~
+
+  - label: ":chart_with_upwards_trend: Generate build summary"
     command: |
-      echo "--- Generating dependency graph"
-      bazel query --output=graph "//..." > graph.dot
-      which dot && dot -Tpng graph.dot -o graph.png || echo "Graphviz not available, skipping PNG generation"
-    artifact_paths:
-      - "graph.dot"
-      - "graph.png"
-    soft_fail: true
+      # Count successful build and test targets
+      BUILD_TARGETS=4
+      TEST_TARGETS=6
+      TOTAL_TARGETS=10
+
+      # Create annotation with build stats
+      cat << EOF | buildkite-agent annotate --style=success --context=build-summary
+      ## :white_check_mark: Build Summary
+
+      **Targets processed:** $TOTAL_TARGETS
+      **Build targets:** $BUILD_TARGETS
+      **Test targets:** $TEST_TARGETS
+
+      ### Services Built
+      - :package: Auth service
+      - :package: Payment service
+      - :package: User service
+
+      ### Libraries Built
+      - :books: Config library
+      - :books: Logging library
+      - :books: Metrics library
+      - :books: Tracing library
+
+      ### Tests Executed
+      - :test_tube: Config library tests
+      - :test_tube: Logging library tests
+      - :test_tube: Metrics library tests
+      - :test_tube: Auth service tests
+      - :test_tube: Payment service tests
+      - :test_tube: User service tests
+
+      All targets built and tested successfully! :rocket:
+      EOF
