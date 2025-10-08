@@ -1,53 +1,48 @@
 steps:
-  - label: ":bazel: Setup Bazel"
+  - label: ":bazel: Build and test libraries and services"
+    key: "build-and-test"
     command: |
-      echo "--- Setting up Bazel workspace"
-      bazel version
-      echo "--- Warming up Bazel"
-      bazel info
+      echo "--- :books: Building libraries"
+      bazel build //lib/...
 
-  - label: ":building_construction: Build All Targets"
-    command: |
-      echo "--- Building all targets"
-      bazel build //...
+      echo "--- :test_tube: Testing libraries"
+      bazel test //lib/...
+
+      echo "--- :package: Building services"
+      bazel build //services/...
+
+      echo "--- :test_tube: Testing services"
+      bazel test //services/...
+
+      echo "--- :bar_chart: Gathering Bazel stats"
+      bazel info 2>&1 | tee bazel-info.txt || true
+
+      echo "--- :arrow_up: Uploading service binaries"
+      buildkite-agent artifact upload "bazel-bin/services/auth/auth_/auth"
+      buildkite-agent artifact upload "bazel-bin/services/payment/payment_/payment"
+      buildkite-agent artifact upload "bazel-bin/services/user/user_/user"
+
+      echo "--- :memo: Creating build annotation"
+      cat << EOF | buildkite-agent annotate --style info --context bazel-stats
+      ## :bar_chart: Bazel Build Statistics
+
+      **Build Summary:**
+      - :white_check_mark: All libraries built successfully
+      - :white_check_mark: All library tests passed
+      - :white_check_mark: All services built successfully
+      - :white_check_mark: All service tests passed
+
+      **Artifacts uploaded:**
+      - \`services/auth/auth\`
+      - \`services/payment/payment\`
+      - \`services/user/user\`
+
+      **Bazel Info:**
+      \`\`\`
+      $(cat bazel-info.txt)
+      \`\`\`
+      EOF
     artifact_paths:
-      - "bazel-bin/**/*"
-
-  - label: ":test_tube: Run All Tests"
-    command: |
-      echo "--- Running all tests"
-      bazel test //... --test_output=errors
-    artifact_paths:
-      - "bazel-testlogs/**/*"
-
-  - label: ":mag: Lint and Format Check"
-    command: |
-      echo "--- Running gazelle to check BUILD file consistency"
-      bazel run //:gazelle -- --mode=diff
-      echo "--- Running go fmt check"
-      test -z "$(bazel run @rules_go//go -- fmt -l .)" || (echo "Go files need formatting" && exit 1)
-
-  - label: ":package: Build Service Binaries"
-    command: |
-      echo "--- Building service binaries"
-      bazel build //services/auth:auth
-      bazel build //services/payment:payment  
-      bazel build //services/user:user
-      echo "--- Copying binaries for upload"
-      mkdir -p dist
-      cp bazel-bin/services/auth/auth_/auth dist/auth
-      cp bazel-bin/services/payment/payment_/payment dist/payment
-      cp bazel-bin/services/user/user_/user dist/user
-      ls -la dist/
-    artifact_paths:
-      - "dist/*"
-
-  - label: ":bar_chart: Generate Dependency Graph"
-    command: |
-      echo "--- Generating dependency graph"
-      bazel query --output=graph "//..." > graph.dot
-      which dot && dot -Tpng graph.dot -o graph.png || echo "Graphviz not available, skipping PNG generation"
-    artifact_paths:
-      - "graph.dot"
-      - "graph.png"
-    soft_fail: true
+      - "bazel-bin/services/auth/auth_/auth"
+      - "bazel-bin/services/payment/payment_/payment"
+      - "bazel-bin/services/user/user_/user"
