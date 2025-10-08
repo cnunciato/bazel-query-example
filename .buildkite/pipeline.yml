@@ -1,48 +1,36 @@
 steps:
-  - label: ":bazel: Build and test libraries and services"
+  - label: ":bazel: Build and test all targets"
     key: "build-and-test"
     command: |
-      echo "--- :books: Building libraries"
+      echo "--- :package: Building libraries"
       bazel build //lib/...
 
-      echo "--- :test_tube: Testing libraries"
-      bazel test //lib/...
-
-      echo "--- :package: Building services"
+      echo "--- :rocket: Building services"
       bazel build //services/...
 
-      echo "--- :test_tube: Testing services"
-      bazel test //services/...
+      echo "--- :test_tube: Running all tests"
+      bazel test //...
 
-      echo "--- :bar_chart: Gathering Bazel stats"
-      bazel info 2>&1 | tee bazel-info.txt || true
+      echo "--- :bar_chart: Collecting build stats"
+      cat <<EOF | buildkite-agent annotate --style info --context build-stats
+      ## :chart_with_upwards_trend: Bazel Build Statistics
 
-      echo "--- :arrow_up: Uploading service binaries"
+      **Libraries Built:**
+      - \`//lib/config\` - Configuration management
+      - \`//lib/logging\` - Shared logging utilities
+      - \`//lib/metrics\` - Metrics collection
+      - \`//lib/tracing\` - Environment-specific tracing
+
+      **Services Built:**
+      - \`//services/auth\` - Authentication service
+      - \`//services/payment\` - Payment processing service
+      - \`//services/user\` - User management service
+
+      **Test Results:**
+      All tests passed :white_check_mark:
+      EOF
+
+      echo "--- :package: Uploading service binaries as artifacts"
       buildkite-agent artifact upload "bazel-bin/services/auth/auth_/auth"
       buildkite-agent artifact upload "bazel-bin/services/payment/payment_/payment"
       buildkite-agent artifact upload "bazel-bin/services/user/user_/user"
-
-      echo "--- :memo: Creating build annotation"
-      cat << EOF | buildkite-agent annotate --style info --context bazel-stats
-      ## :bar_chart: Bazel Build Statistics
-
-      **Build Summary:**
-      - :white_check_mark: All libraries built successfully
-      - :white_check_mark: All library tests passed
-      - :white_check_mark: All services built successfully
-      - :white_check_mark: All service tests passed
-
-      **Artifacts uploaded:**
-      - \`services/auth/auth\`
-      - \`services/payment/payment\`
-      - \`services/user/user\`
-
-      **Bazel Info:**
-      \`\`\`
-      $(cat bazel-info.txt)
-      \`\`\`
-      EOF
-    artifact_paths:
-      - "bazel-bin/services/auth/auth_/auth"
-      - "bazel-bin/services/payment/payment_/payment"
-      - "bazel-bin/services/user/user_/user"
