@@ -1,36 +1,46 @@
 steps:
-  - label: ":bazel: Build and test all targets"
+  - label: ":bazel: :test_tube: Build and test all targets"
     key: "build-and-test"
     command: |
-      echo "--- :package: Building libraries"
+      # Build libraries first
+      echo "--- :books: Building libraries"
       bazel build //lib/...
 
+      # Build services
       echo "--- :rocket: Building services"
       bazel build //services/...
 
-      echo "--- :test_tube: Running all tests"
+      # Run all tests
+      echo "--- :test_tube: Running tests"
       bazel test //...
 
-      echo "--- :bar_chart: Collecting build stats"
-      cat <<EOF | buildkite-agent annotate --style info --context build-stats
-      ## :chart_with_upwards_trend: Bazel Build Statistics
-
-      **Libraries Built:**
-      - \`//lib/config\` - Configuration management
-      - \`//lib/logging\` - Shared logging utilities
-      - \`//lib/metrics\` - Metrics collection
-      - \`//lib/tracing\` - Environment-specific tracing
-
-      **Services Built:**
-      - \`//services/auth\` - Authentication service
-      - \`//services/payment\` - Payment processing service
-      - \`//services/user\` - User management service
-
-      **Test Results:**
-      All tests passed :white_check_mark:
-      EOF
-
-      echo "--- :package: Uploading service binaries as artifacts"
+      # Upload service binaries as artifacts
+      echo "--- :package: Uploading service artifacts"
       buildkite-agent artifact upload "bazel-bin/services/auth/auth_/auth"
       buildkite-agent artifact upload "bazel-bin/services/payment/payment_/payment"
       buildkite-agent artifact upload "bazel-bin/services/user/user_/user"
+
+      # Generate and upload build statistics annotation
+      echo "--- :bar_chart: Generating build statistics"
+      cat << 'EOF' | buildkite-agent annotate --style "info" --context "bazel-stats"
+      ## :bazel: Bazel Build Statistics
+
+      ### :books: Libraries Built
+      - \`//lib/config:config\`
+      - \`//lib/logging:logging\`
+      - \`//lib/metrics:metrics\`
+      - \`//lib/tracing:tracing\`
+
+      ### :rocket: Services Built
+      - \`//services/auth:auth\`
+      - \`//services/payment:payment\`
+      - \`//services/user:user\`
+
+      ### :test_tube: Tests Executed
+      All test targets in \`//...\`
+
+      ### :package: Artifacts Uploaded
+      - \`auth\` service binary
+      - \`payment\` service binary
+      - \`user\` service binary
+      EOF
